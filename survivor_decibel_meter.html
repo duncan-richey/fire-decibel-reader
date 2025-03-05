@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Survivor Fire Decibel Meter</title>
+    <style>
+        body {
+            text-align: center;
+            font-family: Arial, sans-serif;
+            background-color: #222;
+            color: white;
+        }
+        .meter-container {
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            gap: 20px;
+            height: 300px;
+            margin-top: 50px;
+        }
+        .fire-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .fire-meter {
+            width: 50px;
+            height: 0;
+            background: linear-gradient(to top, red, orange, yellow);
+            border-radius: 10px;
+            transition: height 0.2s ease-in-out;
+            animation: flicker 0.1s infinite alternate;
+        }
+        .fire-base {
+            width: 50px;
+            height: 20px;
+            background: red;
+            border-radius: 5px;
+        }
+        .toggle-container {
+            margin-bottom: 20px;
+        }
+        .sensitivity-container {
+            margin-bottom: 10px;
+        }
+        @keyframes flicker {
+            0% { opacity: 0.9; }
+            100% { opacity: 1; transform: scaleY(1.05); }
+        }
+    </style>
+</head>
+<body>
+    <h1>Survivor Fire Decibel Meter</h1>
+    <div class="toggle-container">
+        <label>
+            <input type="radio" name="mode" value="dynamic" checked onchange="setMode('dynamic')"> Dynamic
+        </label>
+        <label>
+            <input type="radio" name="mode" value="peak" onchange="setMode('peak')"> Peak
+        </label>
+    </div>
+    <div class="sensitivity-container">
+        <label>Sensitivity: <input type="range" id="sensitivity" min="50" max="500" value="200" onchange="setSensitivity(this.value)"></label>
+    </div>
+    <div class="meter-container">
+        <div class="fire-container">
+            <div class="fire-meter" id="meter1"></div>
+            <div class="fire-base"></div>
+            <button onclick="toggleMeter(1)" id="button1">Start</button>
+        </div>
+        <div class="fire-container">
+            <div class="fire-meter" id="meter2"></div>
+            <div class="fire-base"></div>
+            <button onclick="toggleMeter(2)" id="button2">Start</button>
+        </div>
+        <div class="fire-container">
+            <div class="fire-meter" id="meter3"></div>
+            <div class="fire-base"></div>
+            <button onclick="toggleMeter(3)" id="button3">Start</button>
+        </div>
+        <div class="fire-container">
+            <div class="fire-meter" id="meter4"></div>
+            <div class="fire-base"></div>
+            <button onclick="toggleMeter(4)" id="button4">Start</button>
+        </div>
+    </div>
+    
+    <script>
+        let audioContext;
+        let analyzer;
+        let peakValues = [0, 0, 0, 0];
+        let activeMeters = [false, false, false, false];
+        let mode = 'dynamic';
+        let sensitivity = 200;
+
+        async function startListening() {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const source = audioContext.createMediaStreamSource(stream);
+            analyzer = audioContext.createAnalyser();
+            source.connect(analyzer);
+            analyzer.fftSize = 256;
+            monitorVolume();
+        }
+        
+        function monitorVolume() {
+            const dataArray = new Uint8Array(analyzer.frequencyBinCount);
+            function update() {
+                analyzer.getByteFrequencyData(dataArray);
+                const volume = Math.max(...dataArray) / 255;
+                const height = volume * sensitivity;
+                
+                activeMeters.forEach((isActive, index) => {
+                    if (isActive) {
+                        if (mode === 'dynamic') {
+                            document.getElementById(`meter${index + 1}`).style.height = height + 'px';
+                        } else if (mode === 'peak') {
+                            peakValues[index] = Math.max(peakValues[index], height);
+                            document.getElementById(`meter${index + 1}`).style.height = peakValues[index] + 'px';
+                        }
+                    }
+                });
+                requestAnimationFrame(update);
+            }
+            update();
+        }
+        
+        function toggleMeter(index) {
+            const button = document.getElementById(`button${index}`);
+            if (button.innerText === 'Start') {
+                if (!audioContext) startListening();
+                activeMeters[index - 1] = true;
+                button.innerText = 'Stop';
+            } else if (button.innerText === 'Stop') {
+                activeMeters[index - 1] = false;
+                button.innerText = 'Reset';
+            } else if (button.innerText === 'Reset') {
+                activeMeters[index - 1] = false;
+                peakValues[index - 1] = 0;
+                document.getElementById(`meter${index}`).style.height = '0px';
+                button.innerText = 'Start';
+            }
+        }
+        
+        function setMode(newMode) {
+            mode = newMode;
+        }
+        
+        function setSensitivity(value) {
+            sensitivity = value;
+        }
+    </script>
+</body>
+</html>
